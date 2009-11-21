@@ -1,0 +1,4 @@
+ngx_addon_name=ngx_independent_subrequest
+HTTP_MODULES="$HTTP_MODULES ngx_independent_subrequest"
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_independent_subrequest.c"
+NGX_ADDON_DEPS="$NGX_ADDON_DEPS $ngx_addon_dir/ngx_independent_subrequest.h"
