@@ -8,15 +8,14 @@
 #define NGX_INDEP_SUBREQ_READ_TIMEOUT 1000 * 120
 #define NGX_INDEP_SUBREQ_TIMEOUT 1000 * 90
 
-
-static void *ngx_indep_subreq_create_main_conf(ngx_conf_t *cf);
-static char *ngx_indep_subreq_init_main_conf(ngx_conf_t *cf, void *conf);
+static ngx_int_t ngx_indep_subreq_postconf (ngx_conf_t *cf);
+static ngx_indep_subreq_conf_t *global_conf;
 
 static ngx_http_module_t ngx_indep_subreq_ctx = {
     NULL,                              		/* preconfiguration */
-    NULL,            						/* postconfiguration */
-    ngx_indep_subreq_create_main_conf,      /* create main configuration */
-    ngx_indep_subreq_init_main_conf,        /* init main configuration */
+    ngx_indep_subreq_postconf,  			/* postconfiguration */
+    NULL,                                   /* create main configuration */
+    NULL,                                   /* init main configuration */
     NULL,                                	/* create server configuration */
     NULL,                                	/* merge server configuration */
     NULL,                                   /* create location configration */
@@ -83,6 +82,7 @@ ngx_indep_subreq_create_request(ngx_http_request_t *r)
 	if (ctx->upstream_extensions.create_request) {
 		return ctx->upstream_extensions.create_request(r);
 	}
+
 	return NGX_OK;
 }
 
@@ -130,7 +130,7 @@ ngx_indep_subreq_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 	}
 
 	if (ctx->callback) {
-		ctx->callback(r, rc, ctx->callback_data);
+		ctx->callback(&r->upstream->buffer, r, rc, ctx->callback_data);
 	}
 
 	return;
@@ -142,7 +142,10 @@ initialize_upstream(ngx_http_request_t *r)
 	ngx_http_upstream_t *u;
 	ngx_indep_subreq_conf_t 	*iscc;
 
-	iscc = ngx_http_get_module_main_conf(r, ngx_indep_subreq);
+	iscc = global_conf;
+	if (!iscc) {
+		return NGX_HTTP_INTERNAL_SERVER_ERROR;
+	}
 
 	/* allocate and initialize the upstream data structures */
 	u = ngx_pcalloc(r->pool, sizeof(ngx_http_upstream_t));
@@ -189,7 +192,9 @@ initialize_upstream(ngx_http_request_t *r)
 }
 
 ngx_int_t
-ngx_indep_subreq_fetch (ngx_pool_t *pool, 
+ngx_indep_subreq_fetch (
+		ngx_http_request_t *r,
+		ngx_pool_t *pool, 
 		ngx_url_t *url, 
 		ngx_indep_subreq_fetch_callback_pt callback,
 		void *callback_data,
@@ -211,37 +216,38 @@ ngx_indep_subreq_fetch (ngx_pool_t *pool,
 	ctx->callback = callback;
 	ctx->callback_data = callback_data;
 
+
+	/* this is total junk -- I need to set up the configuration somehow
+	 * so the various modules don't segfault.  However, I don't know how
+	 * to properly do that, so, in the interim, I'll just steal the config
+	 * from another request.  Lame.
+	 */
+	subreq->loc_conf = r->loc_conf;
+	subreq->main_conf = r->main_conf;
+	ngx_list_t *h = ngx_list_create(r->pool, 20, 48);
+	subreq->headers_out.headers = *h;
+
+	subreq->variables = r->variables;
+
 	return initialize_upstream(subreq);
 }
 
-static void *
-ngx_indep_subreq_create_main_conf(ngx_conf_t *cf)
+static ngx_int_t ngx_indep_subreq_postconf (ngx_conf_t *cf)
 {
-	ngx_indep_subreq_conf_t *iscc;
-	iscc = ngx_pcalloc(cf->pool, sizeof(ngx_indep_subreq_conf_t));
-	if (!iscc) {
-		return NULL;
-	}
-
-	iscc->uc.upstream = ngx_pcalloc(cf->pool, sizeof(ngx_http_upstream_srv_conf_t));
-	if (!iscc->uc.upstream) {
-		return NULL;
-	}
-	return iscc;
-}
-
-static char *
-ngx_indep_subreq_init_main_conf(ngx_conf_t *cf, void *conf) 
-{
-	ngx_indep_subreq_conf_t 		*iscc = conf;
+	ngx_indep_subreq_conf_t 		*iscc;
 	ngx_http_upstream_conf_t 		*uc;
     ngx_int_t 						rc;
+
+	global_conf = ngx_pcalloc(cf->pool, sizeof(ngx_indep_subreq_conf_t));
+	iscc = global_conf;
 
 	/* schema doesn't really seem to affect anything, but makes for nice
 	 * log output
 	 */
 	iscc->schema.len = sizeof("unknown://") - 1;
 	iscc->schema.data = (u_char *) "unknown://";
+
+	iscc->uc.upstream = ngx_pcalloc(cf->pool, sizeof(ngx_http_upstream_srv_conf_t));
 
 	uc = &iscc->uc;
 	/* this is the important part: the ngx_indep_subreq_peer_init function sets up the 
@@ -273,9 +279,9 @@ ngx_indep_subreq_init_main_conf(ngx_conf_t *cf, void *conf)
 	hash.key = ngx_hash_key_lc;
 	rc = ngx_hash_init(&hash, NULL, 0);
 	if (rc != NGX_OK) {
-		return NGX_CONF_ERROR;
+		return NGX_ERROR;
 	}
 
-	return NGX_CONF_OK;
+	return NGX_OK;
 }
 

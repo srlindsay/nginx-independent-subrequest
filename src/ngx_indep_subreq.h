@@ -3,7 +3,7 @@
 
 #include <ngx_http.h>
 
-typedef void (*ngx_indep_subreq_fetch_callback_pt) (ngx_http_request_t *subreq, ngx_int_t rc, void *data);
+typedef void (*ngx_indep_subreq_fetch_callback_pt) (ngx_buf_t *in, ngx_http_request_t *subreq, ngx_int_t rc, void *data);
 
 typedef struct {
 	ngx_int_t (*create_request)(ngx_http_request_t *r);
@@ -31,6 +31,7 @@ typedef struct {
  * upstream_extensions can be NULL if you don't need to customize anything 
  */
 ngx_int_t ngx_indep_subreq_fetch(
+		ngx_http_request_t *r,
 		ngx_pool_t *pool, 
 		ngx_url_t *url, 
 		ngx_indep_subreq_fetch_callback_pt callback, 

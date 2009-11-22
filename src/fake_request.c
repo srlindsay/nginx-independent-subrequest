@@ -113,11 +113,13 @@ make_fake_request(ngx_pool_t *pool)
     if (c->read == NULL) {
         goto failed_conn;
     }
+	c->read->log = log;
 
     c->write = ngx_pcalloc(c->pool, sizeof(ngx_event_t));
     if (c->write == NULL) {
         goto failed_conn;
     }
+	c->write->log = log;
 
     c->write->active = 1;
 
