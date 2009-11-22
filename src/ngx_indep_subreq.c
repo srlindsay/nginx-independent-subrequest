@@ -78,24 +78,44 @@ ngx_indep_subreq_peer_init(ngx_http_request_t *r,
 static ngx_int_t
 ngx_indep_subreq_create_request(ngx_http_request_t *r)
 {
+	ngx_indep_subreq_ctx_t *ctx;
+	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
+	if (ctx->upstream_extensions.create_request) {
+		return ctx->upstream_extensions.create_request(r);
+	}
 	return NGX_OK;
 }
 
 static ngx_int_t
 ngx_indep_subreq_process_header(ngx_http_request_t *r)
 {
+	ngx_indep_subreq_ctx_t *ctx;
+	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
+	if (ctx->upstream_extensions.process_header) {
+		return ctx->upstream_extensions.process_header(r);
+	}
 	return NGX_OK;
 }
 
 static ngx_int_t
 ngx_indep_subreq_reinit_request(ngx_http_request_t *r)
 {
+	ngx_indep_subreq_ctx_t *ctx;
+	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
+	if (ctx->upstream_extensions.reinit_request) {
+		return ctx->upstream_extensions.reinit_request(r);
+	}
 	return NGX_OK;
 }
 
 static void
 ngx_indep_subreq_abort_request(ngx_http_request_t *r)
 {
+	ngx_indep_subreq_ctx_t *ctx;
+	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
+	if (ctx->upstream_extensions.abort_request) {
+		return ctx->upstream_extensions.abort_request(r);
+	}
 	return;
 }
 
@@ -103,14 +123,16 @@ static void
 ngx_indep_subreq_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {
 	ngx_indep_subreq_ctx_t *ctx;
-
 	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
 
 	if (ctx->main_req_gone) {
 		return;
 	}
 
-	ctx->callback(r, rc, ctx->callback_data);
+	if (ctx->callback) {
+		ctx->callback(r, rc, ctx->callback_data);
+	}
+
 	return;
 }
 
@@ -167,9 +189,12 @@ initialize_upstream(ngx_http_request_t *r)
 }
 
 ngx_int_t
-ngx_indep_subreq_fetch (ngx_pool_t *pool, ngx_url_t *url, 
+ngx_indep_subreq_fetch (ngx_pool_t *pool, 
+		ngx_url_t *url, 
 		ngx_indep_subreq_fetch_callback_pt callback,
-		void *callback_data) {
+		void *callback_data,
+		ngx_indep_subreq_upstream_callbacks_t *upstream_extensions)
+{
 
 	ngx_http_request_t 		*subreq;
 	ngx_indep_subreq_ctx_t 	*ctx;
