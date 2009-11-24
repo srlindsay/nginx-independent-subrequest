@@ -42,15 +42,21 @@ ngx_indep_subreq_send_chain_override(ngx_connection_t *c, ngx_chain_t *in,  off_
 }
 
 ngx_http_request_t*
-ngx_indep_subreq_fake_request(ngx_pool_t *pool) 
+ngx_indep_subreq_fake_request(void)
 {
     ngx_connection_t              *c;
     ngx_http_request_t            *r;
     ngx_log_t                     *log;
     ngx_http_log_ctx_t            *ctx;
+	ngx_pool_t                    *req_pool;
+
+	req_pool = ngx_create_pool(8192, ngx_cycle->log);
+	if (!req_pool) {
+		return NULL;
+	}
 
     /* fake incoming connection */
-    c = ngx_pcalloc(pool, sizeof(ngx_connection_t));
+    c = ngx_pcalloc(req_pool, sizeof(ngx_connection_t));
     if (c == NULL) {
         goto failed_none;
     }
@@ -76,7 +82,7 @@ ngx_indep_subreq_fake_request(ngx_pool_t *pool)
         goto failed_conn;
     }
 
-    r->pool = ngx_create_pool(8192, ngx_cycle->log);
+    r->pool = req_pool;
     if (r->pool == NULL) {
         goto failed_conn;
     }
@@ -162,7 +168,7 @@ failed_conn:
     ngx_destroy_pool(c->pool);
 
 failed_none:
-    (void) ngx_pfree(pool, c);
+    ngx_destroy_pool(req_pool);
 
     return NULL;
 }

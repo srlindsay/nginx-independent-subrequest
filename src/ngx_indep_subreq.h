@@ -32,7 +32,7 @@ typedef struct {
  * fake request builds a dummy request suitable for use by 
  * ngx_indep_subreq_init_upstream.
  */
-ngx_http_request_t *ngx_indep_subreq_fake_request(ngx_pool_t *pool);
+ngx_http_request_t *ngx_indep_subreq_fake_request(void);
 
 /**
  * Force a request to proxy to the specified request.  When the request 

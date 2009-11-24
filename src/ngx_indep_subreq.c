@@ -110,6 +110,7 @@ ngx_indep_subreq_reinit_request(ngx_http_request_t *r)
 static void
 ngx_indep_subreq_abort_request(ngx_http_request_t *r)
 {
+	fprintf(stderr, "[%s] -- fuck, why am I here?\n", __FUNCTION__);
 	ngx_indep_subreq_ctx_t *ctx;
 	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
 	if (ctx->upstream_extensions.abort_request) {
@@ -221,7 +222,7 @@ ngx_indep_subreq_fetch (
 
 	ngx_http_request_t 		*subreq;
 
-	subreq = ngx_indep_subreq_fake_request(pool);
+	subreq = ngx_indep_subreq_fake_request();
 
 	/* this is total junk -- I need to set up the configuration somehow
 	 * so the various modules don't segfault.  However, I don't know how
