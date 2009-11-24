@@ -1,7 +1,6 @@
 #include <ngx_http.h>
 
 #include "ngx_indep_subreq.h"
-#include "ngx_indep_subreq_fake_request.h"
 
 #define NGX_INDEP_SUBREQ_CONNECT_TIMEOUT 5000
 #define NGX_INDEP_SUBREQ_SEND_TIMEOUT 5000
@@ -80,7 +79,7 @@ ngx_indep_subreq_create_request(ngx_http_request_t *r)
 	ngx_indep_subreq_ctx_t *ctx;
 	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
 	if (ctx->upstream_extensions.create_request) {
-		return ctx->upstream_extensions.create_request(r);
+		return ctx->upstream_extensions.create_request(r, ctx->callback_data);
 	}
 
 	return NGX_OK;
@@ -92,7 +91,7 @@ ngx_indep_subreq_process_header(ngx_http_request_t *r)
 	ngx_indep_subreq_ctx_t *ctx;
 	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
 	if (ctx->upstream_extensions.process_header) {
-		return ctx->upstream_extensions.process_header(r);
+		return ctx->upstream_extensions.process_header(r, ctx->callback_data);
 	}
 	return NGX_OK;
 }
@@ -103,7 +102,7 @@ ngx_indep_subreq_reinit_request(ngx_http_request_t *r)
 	ngx_indep_subreq_ctx_t *ctx;
 	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
 	if (ctx->upstream_extensions.reinit_request) {
-		return ctx->upstream_extensions.reinit_request(r);
+		return ctx->upstream_extensions.reinit_request(r, ctx->callback_data);
 	}
 	return NGX_OK;
 }
@@ -114,7 +113,7 @@ ngx_indep_subreq_abort_request(ngx_http_request_t *r)
 	ngx_indep_subreq_ctx_t *ctx;
 	ctx = ngx_http_get_module_ctx(r, ngx_indep_subreq);
 	if (ctx->upstream_extensions.abort_request) {
-		return ctx->upstream_extensions.abort_request(r);
+		return ctx->upstream_extensions.abort_request(r, ctx->callback_data);
 	}
 	return;
 }
@@ -136,8 +135,13 @@ ngx_indep_subreq_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 	return;
 }
 
-static ngx_int_t
-initialize_upstream(ngx_http_request_t *r)
+ngx_int_t
+ngx_indep_subreq_init_upstream(
+		ngx_http_request_t *r, 
+		ngx_url_t *url,
+		ngx_indep_subreq_fetch_callback_pt callback,
+		void *callback_data,
+		ngx_indep_subreq_upstream_callbacks_t *upstream_extensions)
 {
 	ngx_http_upstream_t *u;
 	ngx_indep_subreq_conf_t 	*iscc;
@@ -187,6 +191,20 @@ initialize_upstream(ngx_http_request_t *r)
 	 */
 	u->pipe->input_filter = ngx_event_pipe_copy_input_filter;
 
+	ngx_indep_subreq_ctx_t *ctx;
+	ctx = ngx_pcalloc(r->pool, sizeof(ngx_indep_subreq_ctx_t));
+	if (!ctx) {
+		return NGX_ERROR;
+	}
+	ngx_http_set_ctx(r, ctx, ngx_indep_subreq);
+
+	ctx->upstream_url = *url;
+	ctx->callback = callback;
+	ctx->callback_data = callback_data;
+	if (upstream_extensions) {
+		ctx->upstream_extensions = *upstream_extensions;
+	}
+
 	ngx_http_upstream_init(r);
 	return NGX_OK;
 }
@@ -202,20 +220,8 @@ ngx_indep_subreq_fetch (
 {
 
 	ngx_http_request_t 		*subreq;
-	ngx_indep_subreq_ctx_t 	*ctx;
 
-	subreq = make_fake_request(pool);
-
-	ctx = ngx_pcalloc(subreq->pool, sizeof(ngx_indep_subreq_ctx_t));
-	if (!ctx) {
-		return NGX_ERROR;
-	}
-	ngx_http_set_ctx(subreq, ctx, ngx_indep_subreq);
-
-	ctx->upstream_url = *url;
-	ctx->callback = callback;
-	ctx->callback_data = callback_data;
-
+	subreq = ngx_indep_subreq_fake_request(pool);
 
 	/* this is total junk -- I need to set up the configuration somehow
 	 * so the various modules don't segfault.  However, I don't know how
@@ -224,12 +230,13 @@ ngx_indep_subreq_fetch (
 	 */
 	subreq->loc_conf = r->loc_conf;
 	subreq->main_conf = r->main_conf;
-	ngx_list_t *h = ngx_list_create(r->pool, 20, 48);
+	ngx_list_t *h = ngx_list_create(subreq->pool, 20, 48);
 	subreq->headers_out.headers = *h;
 
 	subreq->variables = r->variables;
 
-	return initialize_upstream(subreq);
+	return ngx_indep_subreq_init_upstream(subreq, url,
+			callback, callback_data, upstream_extensions);
 }
 
 static ngx_int_t ngx_indep_subreq_postconf (ngx_conf_t *cf)

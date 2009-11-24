@@ -42,7 +42,7 @@ ngx_indep_subreq_send_chain_override(ngx_connection_t *c, ngx_chain_t *in,  off_
 }
 
 ngx_http_request_t*
-make_fake_request(ngx_pool_t *pool) 
+ngx_indep_subreq_fake_request(ngx_pool_t *pool) 
 {
     ngx_connection_t              *c;
     ngx_http_request_t            *r;

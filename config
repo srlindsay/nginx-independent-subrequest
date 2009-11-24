@@ -1,4 +1,4 @@
 ngx_addon_name=ngx_indep_subreq
 HTTP_MODULES="$HTTP_MODULES ngx_indep_subreq"
 NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/src/ngx_indep_subreq.c $ngx_addon_dir/src/fake_request.c"
-NGX_ADDON_DEPS="$NGX_ADDON_DEPS $ngx_addon_dir/src/ngx_indep_subreq.h $ngx_addon_dir/src/ngx_indep_subreq_fake_request.h"
+NGX_ADDON_DEPS="$NGX_ADDON_DEPS $ngx_addon_dir/src/ngx_indep_subreq.h"
