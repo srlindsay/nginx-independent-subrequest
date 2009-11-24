@@ -94,8 +94,11 @@ ngx_indep_subreq_fake_request(void)
     log->action = "initializing fake request";
     log->data = ctx;
     log->file = ngx_cycle->new_log.file;
+	/*
     log->log_level = NGX_LOG_DEBUG_CONNECTION
                    | NGX_LOG_DEBUG_ALL;
+				   */
+	log->log_level = NGX_LOG_NOTICE;
 
     c->log = log;
     c->log_error = NGX_ERROR_INFO;
